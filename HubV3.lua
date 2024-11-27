@@ -3701,6 +3701,30 @@ local Misc = Library:AddTab("Misc","11156061121")
 
 local Time = H:AddLabel("Executor Time");spawn(function() getgenv().Time = true;while true do wait(.1) UpdateTime() end end);function UpdateTime() local date = os.date("*t");local hour = (date.hour) % 24;local ampm = hour < 12 and "AM" or "PM";local timezone = string.format("%02i:%02i:%02i %s", ((hour -1) % 12) + 1, date.min, date.sec, ampm);local datetime = string.format("%02d/%02d/%04d", date.day, date.month, date.year);local LocalizationService = game:GetService("LocalizationService");local Players = game:GetService("Players");local player = Players.LocalPlayer;local name = player.Name;local result, code = pcall(function()   return LocalizationService:GetCountryRegionForPlayerAsync(player)  end);Time:Set(" : " .. timezone);Time:Set("Executor Time: " .. datetime .. " [ " .. code .. " ]");spawn(function() if getgenv().Time then pcall(function()  while wait() do  Time()  end end) end end) end
 
+
+H:AddLabel("ðŸŒ isnahamzah.tech")
+H:AddLabel("ðŸŽ² discord.gg/isnahamzah")
+H:AddButton("SUBSCRIBE! YT ISNAHAMZAH ",function()
+setclipboard("https://youtube.com/@isnahamzah")
+game.StarterGui:SetCore("SendNotification", {
+      Icon = "rbxassetid://14601663040";
+      Title = "isnahamzah", 
+      Text = "Makasii sayangku!!";
+})
+game.StarterGui:SetCore("SendNotification", {
+    Icon = "rbxassetid://14601663040";
+    Title = "isnahamzah", 
+    Text = "ENG: Like a Thank You";
+})
+end)
+
+H:AddLabel("WORKING ALL EXECUTOR! âœ… ")
+H:AddLabel("#STAYGANTENG ðŸ˜Ž ")
+
+H:AddButton("Click For Send Suggestion ",function()
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+
 -- Membuat jendela GUI
 local frame = Instance.new("Frame")
 frame.Size = UDim2.new(0.6, 0, 0.4, 0)
