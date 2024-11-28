@@ -6,9 +6,9 @@ end
 -- Khởi tạo các dịch vụ cần thiết
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local VirtualUser = game:GetService("VirtualUser")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -16,74 +16,26 @@ if not LocalPlayer then
     return warn("Không tìm thấy LocalPlayer!")
 end
 
--- Kiểm tra và khởi tạo các biến toàn cục
-getgenv().Setting = getgenv().Setting or {
-    ModFarm = {
-        StopItemLegendary = false,
-        SummonKillDarkbeard = false,
-    },
-    TimeReset = 10,
-    WhiteScreen = false,
-}
+-- Các cài đặt
+getgenv().AutoFarmChest = true
+getgenv().AutoTeleport = true
+getgenv().DontTeleportTheSameNumber = true
+getgenv().MaxPlayerThreshold = 10 -- Ngưỡng tối đa người chơi trong server
 
-local AutoFarmChest = true
-local hopserver = false
-
--- Hàm kiểm tra và phá vỡ các hệ thống anti-cheat
-local function CheckAntiCheatBypass()
-    for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
-        if v:IsA("LocalScript") then
-            local forbidden = {
-                "General", "Shiftlock", "FallDamage", "4444", "CamBob",
-                "JumpCD", "Looking", "Run"
-            }
-            if table.find(forbidden, v.Name) then
-                v:Destroy()
-            end
-        end
-    end
-    for _, v in pairs(LocalPlayer.PlayerScripts:GetDescendants()) do
-        if v:IsA("LocalScript") then
-            local forbiddenScripts = {
-                "RobloxMotor6DBugFix", "Clans", "Codes", "CustomForceField",
-                "MenuBloodSp", "PlayerList"
-            }
-            if table.find(forbiddenScripts, v.Name) then
-                v:Destroy()
-            end
-        end
-    end
-end
-
--- Hàm tự động chọn team
-local function AutoJoinTeam()
-    local gui = LocalPlayer.PlayerGui:FindFirstChild("Main")
-    if gui and gui:FindFirstChild("ChooseTeam") then
-        repeat
-            task.wait()
-            if getgenv().Setting.ModFarm.StopItemLegendary or getgenv().Setting.ModFarm.SummonKillDarkbeard then
-                for _, connection in pairs(getconnections(gui.ChooseTeam.Container["Pirates"].Frame.TextButton.Activated)) do
-                    connection.Function()
-                end
-            else
-                ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates")
-            end
-        until LocalPlayer.Team ~= nil
-    end
-end
-
--- Tự động farm chest
+-- Hàm farm chest
 local function AutoFarmChests()
     while task.wait() do
-        if AutoFarmChest then
+        if getgenv().AutoFarmChest then
             local closestChest = nil
             local closestDistance = math.huge
+
             for _, v in pairs(Workspace:GetChildren()) do
                 if v.Name:find("Chest") and (v.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude < closestDistance then
                     closestChest = v
                     closestDistance = (v.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
                 end
             end
+
             if closestChest then
                 for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
                     if part:IsA("BasePart") then
@@ -93,36 +45,60 @@ local function AutoFarmChests()
                 LocalPlayer.Character:PivotTo(closestChest:GetPivot())
                 firesignal(closestChest.Touched, LocalPlayer.Character.HumanoidRootPart)
             else
-                hopserver = true
-                AutoFarmChest = false
+                -- Không tìm thấy chest, kích hoạt nhảy server
+                getgenv().AutoFarmChest = false
+                print("Không còn chest để farm, chuẩn bị đổi server...")
+                game.StarterGui:SetCore("SendNotification", {
+                    Title = "Auto Chest",
+                    Text = "Đã lụm hết gương! Đang đổi server...",
+                    Duration = 3
+                })
+                HopServer()
             end
         end
     end
 end
 
--- Đổi server khi cần
+-- Hàm đổi server
 local function HopServer()
-    while hopserver do
-        task.wait()
-        local servers = ReplicatedStorage:FindFirstChild("__ServerBrowser"):InvokeServer(1)
-        for id, info in pairs(servers) do
-            if id ~= game.JobId and info["Count"] < 10 then
-                ReplicatedStorage.__ServerBrowser:InvokeServer("teleport", id)
-                return
+    local gamelink = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+    local maxplayers = math.huge
+    local goodserver = nil
+
+    -- Hàm tìm server
+    local function serversearch()
+        local data = HttpService:JSONDecode(game:HttpGetAsync(gamelink)).data
+        for _, server in pairs(data) do
+            if type(server) == "table" and server.playing ~= nil and server.playing < getgenv().MaxPlayerThreshold and maxplayers > server.playing then
+                maxplayers = server.playing
+                goodserver = server.id
             end
         end
     end
-end
 
--- Kích hoạt script
-CheckAntiCheatBypass()
-AutoJoinTeam()
-
-spawn(AutoFarmChests)
-spawn(function()
-    while task.wait() do
-        if hopserver then
-            HopServer()
+    -- Hàm lấy danh sách server
+    local function getservers(cursor)
+        serversearch()
+        local data = HttpService:JSONDecode(game:HttpGetAsync(gamelink))
+        if data.nextPageCursor then
+            getservers(data.nextPageCursor)
         end
     end
-end)
+
+    -- Bắt đầu tìm server
+    getservers()
+
+    -- Teleport đến server tốt nhất
+    if goodserver then
+        if getgenv().DontTeleportTheSameNumber and goodserver == game.JobId then
+            warn("Bạn đang ở trong server tốt nhất.")
+            return
+        end
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, goodserver)
+    else
+        warn("Không tìm thấy server phù hợp.")
+    end
+end
+
+-- Kích hoạt AutoFarm
+spawn(AutoFarmChests)
